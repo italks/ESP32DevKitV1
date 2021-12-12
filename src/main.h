@@ -18,7 +18,7 @@ typedef enum
 typedef struct 
 {
     int temp;
-    unsigned int humi;
+    int humi;
     unsigned int air;
     int MAXtemp;
     unsigned int MAXhumi;

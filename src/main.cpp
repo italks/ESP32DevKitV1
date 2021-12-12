@@ -29,6 +29,16 @@ DHT11接口对应:
 #include <BluetoothSerial.h>
 #include <iostream>
 #include <MQ135.h>
+
+
+static WiFiClient espClient;
+#include <AliyunIoTSDK.h>
+AliyunIoTSDK iot;
+#define PRODUCT_KEY "gnzizRvsbe2"
+#define DEVICE_NAME "huayao202"
+#define DEVICE_SECRET "542b63f47f185ec8f42150772a612efd"
+#define REGION_ID "cn-shijiazhuang"
+
 using std::string;
 
 
@@ -49,10 +59,10 @@ String currentDay = "";
 // #define WIFINAME "HUAZUOCHEN"
 // #define WIFINAME2 "zhoulizhi"
 // #define WIFIPASWD2 "12345678"
-// #define WIFINAME2 "Redmi_7BDF"
-// #define WIFIPASWD2 "RjW!I05h@MPI"
-#define WIFINAME2 "AndroidDeveloper"
-#define WIFIPASWD2 "jGHNq9wsMx8S4ejd"
+#define WIFINAME2 "Redmi_7BDF"
+#define WIFIPASWD2 "RjW!I05h@MPI"
+// #define WIFINAME2 "AndroidDeveloper"
+// #define WIFIPASWD2 "jGHNq9wsMx8S4ejd"
 //蓝牙
 BluetoothSerial SerialBT;
 #define BLUETOOTH_NAME "ESP32DevKitV1"
@@ -90,7 +100,7 @@ String City = "石家庄市";
 //String WeatherAPI = "http://wthrcdn.etouch.cn/weather_mini?city=" + City;
 //String WeatherAPI = "http://www.weather.com.cn/data/cityinfo/101280101.html";
 String WeatherAPI = "http://t.weather.itboy.net/api/weather/city/101090101";
-
+unsigned long lastMsMain = 0;
 int disFlag = 1;
 void WiFi_Connect();
 void page1(void);
@@ -108,9 +118,32 @@ void Del_SerialBTVal(void);
 void SysParaInit();
 void GetDHT_MQ135();
 void keyscan();
+void aliyunIot();
 
 
+void wifiInit(const char *ssid, const char *passphrase)
+{
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_unifont_t_chinese2);//温湿度
+    u8g2.setCursor(0, 14+16*0);
+    u8g2.print("Connect to WIFI");
+    u8g2.setCursor(0, 14+16*1);
+    u8g2.print(WIFINAME2);
 
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, passphrase);
+    WiFi.setAutoConnect (true);
+    WiFi.setAutoReconnect (true);
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        delay(2500);
+        Serial.println(".");
+    }
+    Serial.println("Connected to AP");
+    Serial.println(WiFi.status());
+    Serial.println(WiFi.localIP());
+    Serial.println(WiFi.macAddress());
+}
 
 
 //初始化代码
@@ -128,36 +161,23 @@ void setup(){
  
     //mq-135  ADC初始化
     adcAttachPin(MQ135_PIN);
-    analogReadResolution(4);
-    analogSetWidth(9);
 
     //按键相关
     pinMode(KEY_IO, INPUT_PULLUP);
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
-    
+    // wifiInit(WIFINAME2, WIFIPASWD2);
     //连接WIFI
-    u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_unifont_t_chinese2);//温湿度
-    Serial.print("Connecting.. ");
-    u8g2.print("Connect to WIFI");
-    u8g2.setCursor(0, 14+16*0);
-    u8g2.print("Connect to WIFI");
-    u8g2.setCursor(0, 14+16*1);
-    u8g2.print(WIFINAME2);
-    u8g2.sendBuffer();
+    
     WiFi_Connect();
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.status());
-    Serial.println(WiFi.localIP());
-    Serial.println(WiFi.macAddress());
+
 
     //蓝牙初始化
     SerialBT.begin(BLUETOOTH_NAME); // 如果没有参数传入则默认是蓝牙名称是: "ESP32"
     SerialBT.setPin("1234");   // 蓝牙连接的配对码
-    Serial.printf("蓝牙初始化成功，等待连接\r\nBT initial ok and ready to pair. \r\n");
+    Serial.printf("蓝牙初始化成功，等待连接\r\n");
 
+    // aliyunIot();
     
     SysParaInit();//系统参数初始化
 }
@@ -167,13 +187,16 @@ void loop(){
     getBiliBiliFollower();//获取粉丝数
     getWeather();//获取天气
     while(1){
-        // keyscan();//按键扫描
-        // DisPlayTack();//刷新显示
-        page1();
+        keyscan();//按键扫描
+        DisPlayTack();//刷新显示
+        // page4();
         Send_DHTW();//发送温湿度值
         Del_SerialBTVal();//处理蓝牙数据
     }
     
+}
+void aliyunIot(){
+    AliyunIoTSDK::begin(espClient, PRODUCT_KEY, DEVICE_NAME, DEVICE_SECRET, REGION_ID);
 }
 
 
@@ -214,8 +237,8 @@ void GetDHT_MQ135()
     // MQ135 gasSensor = MQ135(MQ135_PIN);
     // System.air = gasSensor.getRZero();
     
-    MQ135 gasSensor = MQ135(MQ135_PIN);
-    System.air = gasSensor.getRZero();
+    MQ135 gasSensor = MQ135(MQ135_PIN,23047772);
+    System.air = gasSensor.getPPM();
     //3958344704
     //ppm
     //8476
@@ -252,7 +275,28 @@ void Send_DHTW(void)
         SerialBT.printf("AIRVAL:%d\r\n",System.air);
         cnt = 0;
     }
+    // AliyunIoTSDK::loop();
+    // if (millis() - lastMsMain >= 60000*60)
+    // {
+    //     AliyunIoTSDK::send("CurrentTemperature",System.temp);
+    //     AliyunIoTSDK::send("CurrentHumidity", System.humi);
+    // }
 }
+
+
+void powerCallback(JsonVariant p)
+{
+    int PowerSwitch = p["PowerSwitch"];
+    if (PowerSwitch == 1)
+    {
+        //
+    }
+    else
+    {
+        //
+    }
+}
+
 void Del_SerialBTVal(void)
 {
     string readBuf;
@@ -481,8 +525,9 @@ void page2(void) {
         u8g2.setFont(u8g2_font_unifont_t_chinese3);
         u8g2.setCursor(48, 14+16*0);
         u8g2.print("天气");
-        u8g2.setCursor(48, 14+16*1);
-        u8g2.print("石家庄");
+        u8g2.setCursor(70, 14+16*1);
+        u8g2.print("石家");
+        u8g2.drawXBM(70+16*2,14+2,16,16,zhuang);
         //u8g2.drawXBM(70, 16*1, 16, 16, guang3);
         // u8g2.drawXBM(86, 16*1, 16, 16, zhou1);
         u8g2.setCursor(70, 14+16*2);
@@ -619,11 +664,11 @@ void page4(void) {
         
 
         u8g2.setFont(u8g2_font_unifont_t_chinese2);
-        // u8g2.setCursor(0, 14+16*1);
+        u8g2.setCursor(0, 14+16*1);
         u8g2.drawUTF8(0,14+16*1,"blbl:周立志");
-        u8g2.setCursor(16*4, 14+16*1);
+        // u8g2.setCursor(16*4, 14+16*1);
 
-        u8g2.drawXBM(16*4, 16, 16, 16, jie2);
+        // u8g2.drawXBM(16*4, 16, 16, 16, jie2);
         u8g2.drawXBM(16*0, 16*2, 16, 16, fen3);
         u8g2.drawXBM(16*1, 16*2, 16, 16, si1);
         u8g2.setCursor(16*2, 14+16*2);
@@ -658,23 +703,31 @@ void DisPlayTack(void)
 //	WiFi的初始化和连接
 void WiFi_Connect()
 {
-    // int cnt = 40;
-	// WiFi.begin(WIFINAME,WIFIPASWD);
-	// while (WiFi.status() != WL_CONNECTED && cnt--)
-	// { //这里是阻塞程序，直到连接成功
-	// 	delay(300);
-	// 	Serial.print(".");
-	// }
-    // WiFi.disconnect();
-    int cnt = 40;
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_unifont_t_chinese2);//温湿度
+    // Serial.print("Connecting.. ");
+    // u8g2.print("Connect to WIFI");
+    u8g2.setCursor(0, 14+16*0);
+    u8g2.print("Connect to WIFI");
+    u8g2.setCursor(0, 14+16*1);
+    u8g2.print(WIFINAME2);
+    u8g2.sendBuffer();
+
+    WiFi.mode(WIFI_STA);
+    WiFi.setAutoConnect (true);
+    WiFi.setAutoReconnect (true);
 	WiFi.begin(WIFINAME2,WIFIPASWD2);
     while (WiFi.status() != WL_CONNECTED)
 	{ //这里是阻塞程序，直到连接成功
 		delay(2500);
-        WiFi.begin(WIFINAME2,WIFIPASWD2);
+        // WiFi.begin(WIFINAME2,WIFIPASWD2);
 		Serial.print(".");
 	}
-    Serial.print("已连接.");
+    Serial.println("WiFi 已连接");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.status());
+    Serial.println(WiFi.localIP());
+    Serial.println(WiFi.macAddress());
 }
 //存储配置到"EEPROM"
 void saveConfig()
