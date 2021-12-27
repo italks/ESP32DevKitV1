@@ -53,11 +53,7 @@ String currentDay = "";
 
 
 //wifi
-// #define WIFINAME "2220"
-// #define WIFIPASWD "13825092946"
-
-// #define WIFINAME "HUAZUOCHEN"
-// #define WIFINAME2 "zhoulizhi"
+// #define WIFINAME2 "iPhone"
 // #define WIFIPASWD2 "12345678"
 #define WIFINAME2 "Redmi_7BDF"
 #define WIFIPASWD2 "RjW!I05h@MPI"
@@ -187,8 +183,11 @@ void loop(){
     getBiliBiliFollower();//获取粉丝数
     getWeather();//获取天气
     while(1){
-        keyscan();//按键扫描
-        DisPlayTack();//刷新显示
+        // keyscan();//按键扫描
+        // DisPlayTack();//刷新显示
+        //温湿度
+        page1();
+        //粉丝数
         // page4();
         Send_DHTW();//发送温湿度值
         Del_SerialBTVal();//处理蓝牙数据
@@ -230,24 +229,13 @@ void GetDHT_MQ135()
         System.temp = temp;
         System.humi = humi;
     }
-    // adcVal = analogRead(33);
-    // float volt = adcVal*3.3/4096;
-	// System.air = (int )pow((3.4880*10*volt)/(5-volt),(1.0/0.3203));
-    //初始化MQ135
-    // MQ135 gasSensor = MQ135(MQ135_PIN);
-    // System.air = gasSensor.getRZero();
-    
-    MQ135 gasSensor = MQ135(MQ135_PIN,23047772);
-    System.air = gasSensor.getPPM();
-    //3958344704
-    //ppm
-    //8476
 
-    // Serial.printf("adcVal = %d\r\n",adcVal);
-    // Serial.printf("volt = %f\r\n",volt);
-    // Serial.printf("air = %d\r\n",System.air);
-    // Serial.printf("温度=%d\r\n",temp);
-    // Serial.printf("湿度=%d\r\n",humi);
+    //初始化MQ135
+    MQ135 gasSensor = MQ135(MQ135_PIN);
+    System.air = gasSensor.getRZero();
+    
+    // MQ135 gasSensor = MQ135(MQ135_PIN,1);
+    // System.air = gasSensor.getPPM();
 }
 //系统参数初始化
 void SysParaInit()
@@ -471,7 +459,7 @@ void page1(void) {
         u8g2.println(System.temp);
         u8g2.setCursor(80,  14+16*2);
         u8g2.println(System.humi);
-        u8g2.setCursor(40,  14+16*3);
+        u8g2.setCursor(80,  14+16*3);
         u8g2.println(System.air);
         // u8g2.setCursor(104,  14+16*3);
         // u8g2.print("ppm");
